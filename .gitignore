@@ -1,0 +1,6 @@
+__pycache__
+
+.vscode
+api/__pycache__
+logic/__pycache__
+venv
