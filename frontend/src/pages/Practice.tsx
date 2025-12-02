@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { userApi, practiceApi } from '../services/api';
 import { v4 as uuidv4 } from 'uuid';
 
 const Practice: React.FC = () => {
@@ -13,9 +14,38 @@ const Practice: React.FC = () => {
   const wsRef = useRef<WebSocket | null>(null);
   const clientId = useRef(uuidv4());
   
+  // Session tracking
+  const startTime = useRef<number>(Date.now());
+  const accuracySamples = useRef<number[]>([]);
+  
   // Voice feedback throttling refs
   const lastSpokenTime = useRef<number>(0);
   const lastSpokenMessage = useRef<string>('');
+
+  const handleBack = async () => {
+    const endTime = Date.now();
+    const durationSeconds = Math.floor((endTime - startTime.current) / 1000);
+    
+    // Calculate average accuracy
+    const avgAccuracy = accuracySamples.current.length > 0
+      ? accuracySamples.current.reduce((a, b) => a + b, 0) / accuracySamples.current.length
+      : 0;
+
+    // Log session and update streak
+    try {
+      await Promise.all([
+        userApi.post('/streak/update'),
+        practiceApi.post('/log', {
+          poseName: poseName || 'Unknown',
+          averageAccuracy: avgAccuracy * 100, // Convert to percentage
+          durationSeconds: durationSeconds
+        })
+      ]);
+    } catch (error) {
+      console.error('Failed to save session data', error);
+    }
+    navigate('/dashboard');
+  };
 
   const speak = (text: string) => {
     if (!text) return;
@@ -78,6 +108,11 @@ const Practice: React.FC = () => {
           setSimilarity(data.feedback.similarity);
           setFeedback(data.feedback.feedback_text);
           
+          // Collect sample for average calculation (only if pose is somewhat detected)
+          if (data.feedback.similarity > 0.1) {
+            accuracySamples.current.push(data.feedback.similarity);
+          }
+          
           // Trigger voice feedback if available
           if (data.feedback.voice_message) {
             speak(data.feedback.voice_message);
@@ -109,7 +144,7 @@ const Practice: React.FC = () => {
       <div className="p-4 bg-gray-800 flex justify-between items-center shadow-md">
         <h1 className="text-2xl font-bold">Practicing: {poseName}</h1>
         <button 
-          onClick={() => navigate('/dashboard')}
+          onClick={handleBack}
           className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded transition-colors"
         >
           Back to Dashboard
