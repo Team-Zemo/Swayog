@@ -4,3 +4,4 @@ __pycache__
 api/__pycache__
 logic/__pycache__
 venv
+.venv

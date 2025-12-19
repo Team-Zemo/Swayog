@@ -1,10 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { poseApi } from '../services/api';
+import { poseApi, userApi, practiceApi } from '../services/api';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+interface Recommendation {
+  poseName: string;
+  difficulty: string;
+  reason: string;
+}
+
 const Dashboard: React.FC = () => {
   const [poses, setPoses] = useState<string[]>([]);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [streak, setStreak] = useState({ currentStreak: 0, maxStreak: 0 });
   const { logout, setupMfa, enableMfa, token } = useAuth();
   const [showMfaSetup, setShowMfaSetup] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState('');
@@ -19,7 +27,28 @@ const Dashboard: React.FC = () => {
         console.error('Failed to fetch poses', error);
       }
     };
+    
+    const fetchStreak = async () => {
+      try {
+        const response = await userApi.get('/streak');
+        setStreak(response.data);
+      } catch (error) {
+        console.error('Failed to fetch streak', error);
+      }
+    };
+
+    const fetchRecommendations = async () => {
+      try {
+        const response = await practiceApi.get('/recommendations');
+        setRecommendations(response.data);
+      } catch (error) {
+        console.error('Failed to fetch recommendations', error);
+      }
+    };
+
     fetchPoses();
+    fetchStreak();
+    fetchRecommendations();
   }, []);
 
   const isMfaToken = (t: string | null) => {
@@ -78,12 +107,27 @@ const Dashboard: React.FC = () => {
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-4xl font-bold">Dashboard</h1>
         <div className="flex gap-4">
+          <Link to="/profile" className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded transition-colors">
+            Profile
+          </Link>
           <button onClick={handleSetupMfa} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded transition-colors">
             Enable MFA
           </button>
           <button onClick={logout} className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded transition-colors">
             Logout
           </button>
+        </div>
+      </div>
+
+      {/* Streak Section */}
+      <div className="bg-gray-800 p-6 rounded-lg mb-8 shadow-lg flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-orange-500">🔥 Your Streak</h2>
+          <p className="text-gray-400">Keep practicing daily to increase your streak!</p>
+        </div>
+        <div className="text-right">
+          <div className="text-4xl font-bold">{streak.currentStreak} <span className="text-lg text-gray-500">days</span></div>
+          <div className="text-sm text-gray-500">Max Streak: {streak.maxStreak} days</div>
         </div>
       </div>
 
@@ -108,7 +152,29 @@ const Dashboard: React.FC = () => {
         </div>
       )}
       
-      <h2 className="text-2xl mb-6">Select a Pose to Practice</h2>
+      {/* Recommendations Section */}
+      {recommendations.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold mb-4 text-purple-400">✨ Recommended for You</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {recommendations.map((rec) => (
+              <Link 
+                key={rec.poseName} 
+                to={`/practice/${rec.poseName}`}
+                className="block p-6 bg-gradient-to-br from-purple-900 to-gray-800 rounded-lg hover:from-purple-800 hover:to-gray-700 transition-all transform hover:-translate-y-1 shadow-lg border border-purple-700"
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <h3 className="text-xl font-bold">{rec.poseName}</h3>
+                  <span className="text-xs px-2 py-1 bg-purple-600 rounded-full">{rec.difficulty}</span>
+                </div>
+                <p className="text-gray-300 text-sm">{rec.reason}</p>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+      
+      <h2 className="text-2xl mb-6">All Poses</h2>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {poses.map((pose) => (
